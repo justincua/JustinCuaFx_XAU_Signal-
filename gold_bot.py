@@ -133,7 +133,7 @@ def analyze(df):
 
 def run():
 
-    print("GOLD BOT STARTED")
+    print("BOT VÀNG ĐÃ CHẠY")
 
     while True:
 
@@ -148,7 +148,7 @@ def run():
             if signal:
 
                 msg = f"""
-<b>GOLD SIGNAL</b>
+<b>JUSTINCUA XAUUSD SIGNAL</b>
 
 Type: {signal['type']}
 
