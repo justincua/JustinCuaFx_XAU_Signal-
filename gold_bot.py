@@ -4,11 +4,17 @@ import numpy as np
 import time
 from config import *
 
-# ==============================
+print("BOT VÀNG ĐÃ CHẠY")
+
+# =============================
 # TELEGRAM
-# ==============================
+# =============================
 
 def send_telegram(msg):
+
+    if not TELEGRAM_BOT_TOKEN:
+        print("No telegram token")
+        return
 
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
 
@@ -24,9 +30,9 @@ def send_telegram(msg):
         print("Telegram error:", e)
 
 
-# ==============================
+# =============================
 # GET GOLD DATA
-# ==============================
+# =============================
 
 def get_gold_data():
 
@@ -64,9 +70,9 @@ def get_gold_data():
     return df
 
 
-# ==============================
+# =============================
 # INDICATORS
-# ==============================
+# =============================
 
 def indicators(df):
 
@@ -88,9 +94,9 @@ def indicators(df):
     return df
 
 
-# ==============================
-# ANALYZE
-# ==============================
+# =============================
+# ANALYSIS
+# =============================
 
 def analyze(df):
 
@@ -137,31 +143,27 @@ def analyze(df):
     return None
 
 
-# ==============================
+# =============================
 # MAIN LOOP
-# ==============================
+# =============================
 
-def run():
+while True:
 
-    print("BOT VÀNG ĐÃ CHẠY")
+    try:
 
-    while True:
+        df = get_gold_data()
 
-        try:
+        if df is None:
+            time.sleep(60)
+            continue
 
-            df = get_gold_data()
+        df = indicators(df)
 
-            if df is None:
-                time.sleep(60)
-                continue
+        signal = analyze(df)
 
-            df = indicators(df)
+        if signal:
 
-            signal = analyze(df)
-
-            if signal:
-
-                msg = f"""
+            msg = f"""
 <b>GOLD SIGNAL</b>
 
 Type: {signal['type']}
@@ -173,16 +175,12 @@ SL: {round(signal['sl'],2)}
 TP: {round(signal['tp'],2)}
 """
 
-                print(msg)
+            print(msg)
 
-                send_telegram(msg)
+            send_telegram(msg)
 
-        except Exception as e:
+    except Exception as e:
 
-            print("Error:", e)
+        print("Error:", e)
 
-        time.sleep(CHECK_INTERVAL)
-
-
-if __name__ == "__main__":
-    run()
+    time.sleep(CHECK_INTERVAL)
