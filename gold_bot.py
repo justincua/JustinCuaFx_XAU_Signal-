@@ -2,14 +2,11 @@ import requests
 import pandas as pd
 import numpy as np
 import time
-import json
 from config import *
 
-BASE_URL = "https://api.binance.com/api/v3/klines"
-
-# =============================
+# ==============================
 # TELEGRAM
-# =============================
+# ==============================
 
 def send_telegram(msg):
 
@@ -23,44 +20,55 @@ def send_telegram(msg):
 
     try:
         requests.post(url, json=payload)
-    except:
-        pass
+    except Exception as e:
+        print("Telegram error:", e)
 
 
-# =============================
-# GET DATA
-# =============================
+# ==============================
+# GET GOLD DATA
+# ==============================
 
-def get_candles():
+def get_gold_data():
 
-    url = f"https://api.binance.com/api/v3/klines"
+    url = "https://www.alphavantage.co/query"
 
     params = {
-        "symbol":"XAUUSDT",
-        "interval":"5m",
-        "limit":200
+        "function": "FX_INTRADAY",
+        "from_symbol": SYMBOL,
+        "to_symbol": MARKET,
+        "interval": "5min",
+        "apikey": ALPHA_API_KEY,
+        "outputsize": "compact"
     }
 
-    r = requests.get(url,params=params)
+    r = requests.get(url, params=params)
 
     data = r.json()
 
-    df = pd.DataFrame(data)
+    key = "Time Series FX (5min)"
 
-    df = df[[1,2,3,4,5]]
+    if key not in data:
+        print("API ERROR:", data)
+        return None
 
-    df.columns = ["open","high","low","close","volume"]
+    candles = data[key]
+
+    df = pd.DataFrame(candles).T
+
+    df.columns = ["open","high","low","close"]
 
     df = df.astype(float)
+
+    df = df.sort_index()
 
     return df
 
 
-# =============================
+# ==============================
 # INDICATORS
-# =============================
+# ==============================
 
-def calculate_indicators(df):
+def indicators(df):
 
     df["ema20"] = df["close"].ewm(span=20).mean()
     df["ema50"] = df["close"].ewm(span=50).mean()
@@ -75,18 +83,20 @@ def calculate_indicators(df):
 
     rs = avg_gain / avg_loss
 
-    df["rsi"] = 100 - (100 / (1 + rs))
+    df["rsi"] = 100 - (100/(1+rs))
 
     return df
 
 
-# =============================
-# ANALYSIS
-# =============================
+# ==============================
+# ANALYZE
+# ==============================
 
 def analyze(df):
 
     last = df.iloc[-1]
+
+    price = last["close"]
 
     trend = "neutral"
 
@@ -96,13 +106,13 @@ def analyze(df):
     if last["ema20"] < last["ema50"]:
         trend = "bearish"
 
-    price = last["close"]
+    rsi = last["rsi"]
 
-    if trend == "bullish" and last["rsi"] < 65:
+    if trend == "bullish" and rsi < 65:
 
         entry = price
-        sl = price - 8
-        tp = price + 16
+        sl = price - 2
+        tp = price + 4
 
         return {
             "type":"BUY",
@@ -111,11 +121,11 @@ def analyze(df):
             "tp":tp
         }
 
-    if trend == "bearish" and last["rsi"] > 35:
+    if trend == "bearish" and rsi > 35:
 
         entry = price
-        sl = price + 8
-        tp = price - 16
+        sl = price + 2
+        tp = price - 4
 
         return {
             "type":"SELL",
@@ -127,9 +137,9 @@ def analyze(df):
     return None
 
 
-# =============================
+# ==============================
 # MAIN LOOP
-# =============================
+# ==============================
 
 def run():
 
@@ -139,16 +149,20 @@ def run():
 
         try:
 
-            df = get_candles()
+            df = get_gold_data()
 
-            df = calculate_indicators(df)
+            if df is None:
+                time.sleep(60)
+                continue
+
+            df = indicators(df)
 
             signal = analyze(df)
 
             if signal:
 
                 msg = f"""
-<b>JUSTINCUA XAUUSD SIGNAL</b>
+<b>GOLD SIGNAL</b>
 
 Type: {signal['type']}
 
@@ -165,7 +179,7 @@ TP: {round(signal['tp'],2)}
 
         except Exception as e:
 
-            print("Error:",e)
+            print("Error:", e)
 
         time.sleep(CHECK_INTERVAL)
 
