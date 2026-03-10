@@ -4,11 +4,11 @@ import numpy as np
 import time
 from config import *
 
-print("BOT XAUUSD STARTED")
+print("🚀 GOLD AI BOT STARTED")
 
-# ==============================
+# =========================
 # TELEGRAM
-# ==============================
+# =========================
 
 def send_telegram(msg):
 
@@ -23,17 +23,17 @@ def send_telegram(msg):
     requests.post(url, json=payload)
 
 
-# ==============================
-# GET GOLD DATA
-# ==============================
+# =========================
+# GET DATA
+# =========================
 
-def get_candles():
+def get_data(interval):
 
     url = "https://api.twelvedata.com/time_series"
 
     params = {
         "symbol": SYMBOL,
-        "interval": INTERVAL,
+        "interval": interval,
         "outputsize": 200,
         "apikey": API_KEY
     }
@@ -50,14 +50,14 @@ def get_candles():
 
     df = df.astype(float)
 
-    df = df.sort_index()
+    df = df[::-1]
 
     return df
 
 
-# ==============================
+# =========================
 # INDICATORS
-# ==============================
+# =========================
 
 def indicators(df):
 
@@ -82,27 +82,61 @@ def indicators(df):
     return df
 
 
-# ==============================
-# ANALYSIS
-# ==============================
+# =========================
+# TREND
+# =========================
 
-def analyze(df):
+def trend(df):
 
     last = df.iloc[-1]
 
-    price = last["close"]
-
-    trend = "neutral"
-
     if last["ema20"] > last["ema50"]:
-        trend = "bullish"
+        return "bullish"
 
     if last["ema20"] < last["ema50"]:
-        trend = "bearish"
+        return "bearish"
+
+    return "neutral"
+
+
+# =========================
+# BREAKOUT DETECTION
+# =========================
+
+def breakout(df):
+
+    high = df["high"].rolling(20).max().iloc[-1]
+
+    low = df["low"].rolling(20).min().iloc[-1]
+
+    price = df.iloc[-1]["close"]
+
+    if price > high:
+        return "break_up"
+
+    if price < low:
+        return "break_down"
+
+    return None
+
+
+# =========================
+# ANALYZE
+# =========================
+
+def analyze(df_m1, df_m5, df_m15):
+
+    trend_m5 = trend(df_m5)
+
+    trend_m15 = trend(df_m15)
+
+    last = df_m1.iloc[-1]
+
+    price = last["close"]
 
     rsi = last["rsi"]
 
-    if trend == "bullish" and rsi < 65:
+    if trend_m5 == "bullish" and trend_m15 == "bullish" and rsi < 65:
 
         entry = price
 
@@ -117,7 +151,7 @@ def analyze(df):
             "tp":tp
         }
 
-    if trend == "bearish" and rsi > 35:
+    if trend_m5 == "bearish" and trend_m15 == "bearish" and rsi > 35:
 
         entry = price
 
@@ -135,30 +169,38 @@ def analyze(df):
     return None
 
 
-# ==============================
+# =========================
 # MAIN LOOP
-# ==============================
+# =========================
 
 while True:
 
     try:
 
-        df = get_candles()
+        df_m1 = get_data("1min")
 
-        if df is None:
+        df_m5 = get_data("5min")
+
+        df_m15 = get_data("15min")
+
+        if df_m1 is None or df_m5 is None or df_m15 is None:
 
             time.sleep(60)
 
             continue
 
-        df = indicators(df)
+        df_m1 = indicators(df_m1)
 
-        signal = analyze(df)
+        df_m5 = indicators(df_m5)
+
+        df_m15 = indicators(df_m15)
+
+        signal = analyze(df_m1, df_m5, df_m15)
 
         if signal:
 
             msg = f"""
-📊 <b>XAUUSD SIGNAL</b>
+📊 <b>XAUUSD AI SIGNAL</b>
 
 Type: {signal['type']}
 
@@ -167,6 +209,8 @@ Entry: {round(signal['entry'],2)}
 SL: {round(signal['sl'],2)}
 
 TP: {round(signal['tp'],2)}
+
+Timeframe: M1 / M5 / M15
 """
 
             print(msg)
