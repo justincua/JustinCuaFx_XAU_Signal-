@@ -4,17 +4,13 @@ import numpy as np
 import time
 from config import *
 
-print("BOT VÀNG ĐÃ CHẠY")
+print("BOT XAUUSD STARTED")
 
-# =============================
+# ==============================
 # TELEGRAM
-# =============================
+# ==============================
 
 def send_telegram(msg):
-
-    if not TELEGRAM_BOT_TOKEN:
-        print("No telegram token")
-        return
 
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
 
@@ -24,44 +20,33 @@ def send_telegram(msg):
         "parse_mode": "HTML"
     }
 
-    try:
-        requests.post(url, json=payload)
-    except Exception as e:
-        print("Telegram error:", e)
+    requests.post(url, json=payload)
 
 
-# =============================
+# ==============================
 # GET GOLD DATA
-# =============================
+# ==============================
 
-def get_gold_data():
+def get_candles():
 
-    url = "https://www.alphavantage.co/query"
+    url = "https://api.twelvedata.com/time_series"
 
     params = {
-        "function": "FX_INTRADAY",
-        "from_symbol": SYMBOL,
-        "to_symbol": MARKET,
-        "interval": "5min",
-        "apikey": ALPHA_API_KEY,
-        "outputsize": "compact"
+        "symbol": SYMBOL,
+        "interval": INTERVAL,
+        "outputsize": 200,
+        "apikey": API_KEY
     }
 
     r = requests.get(url, params=params)
 
     data = r.json()
 
-    key = "Time Series FX (5min)"
-
-    if key not in data:
+    if "values" not in data:
         print("API ERROR:", data)
         return None
 
-    candles = data[key]
-
-    df = pd.DataFrame(candles).T
-
-    df.columns = ["open","high","low","close"]
+    df = pd.DataFrame(data["values"])
 
     df = df.astype(float)
 
@@ -70,21 +55,24 @@ def get_gold_data():
     return df
 
 
-# =============================
+# ==============================
 # INDICATORS
-# =============================
+# ==============================
 
 def indicators(df):
 
     df["ema20"] = df["close"].ewm(span=20).mean()
+
     df["ema50"] = df["close"].ewm(span=50).mean()
 
     delta = df["close"].diff()
 
     gain = delta.clip(lower=0)
+
     loss = -delta.clip(upper=0)
 
     avg_gain = gain.rolling(14).mean()
+
     avg_loss = loss.rolling(14).mean()
 
     rs = avg_gain / avg_loss
@@ -94,9 +82,9 @@ def indicators(df):
     return df
 
 
-# =============================
+# ==============================
 # ANALYSIS
-# =============================
+# ==============================
 
 def analyze(df):
 
@@ -117,7 +105,9 @@ def analyze(df):
     if trend == "bullish" and rsi < 65:
 
         entry = price
+
         sl = price - 2
+
         tp = price + 4
 
         return {
@@ -130,7 +120,9 @@ def analyze(df):
     if trend == "bearish" and rsi > 35:
 
         entry = price
+
         sl = price + 2
+
         tp = price - 4
 
         return {
@@ -143,18 +135,20 @@ def analyze(df):
     return None
 
 
-# =============================
+# ==============================
 # MAIN LOOP
-# =============================
+# ==============================
 
 while True:
 
     try:
 
-        df = get_gold_data()
+        df = get_candles()
 
         if df is None:
+
             time.sleep(60)
+
             continue
 
         df = indicators(df)
@@ -164,7 +158,7 @@ while True:
         if signal:
 
             msg = f"""
-<b>GOLD SIGNAL</b>
+📊 <b>XAUUSD SIGNAL</b>
 
 Type: {signal['type']}
 
